@@ -65,9 +65,8 @@ public class DimScreenService extends Service {
 
 		startForegroundService();
 
-
-		addOpacityController();
-		isAttachedLayout = true;
+//		addOpacityController();
+//		isAttachedLayout = true;
 	}
 
 	@Override
@@ -89,10 +88,8 @@ public class DimScreenService extends Service {
 
 	@TargetApi(Build.VERSION_CODES.JELLY_BEAN_MR1)
 	private void addOpacityController() {
-		if (mWindowManager != null) {
-			if (mLayout != null) mWindowManager.removeView(mLayout);
-			mLayout = null;
-		}
+		removeWindowLayout();
+
 		mLayout = new LinearLayout(this);
 		mLayout.setPadding(60, 60, 60, 60);
 		mLayout.setBackgroundColor(Color.BLACK);
