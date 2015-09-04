@@ -14,14 +14,19 @@ import android.graphics.Color;
 import android.graphics.PixelFormat;
 import android.os.BatteryManager;
 import android.os.Build;
+import android.os.Handler;
 import android.os.IBinder;
+import android.os.Message;
 import android.preference.PreferenceManager;
 import android.text.TextUtils;
 import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.Gravity;
+import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.ViewGroup;
+import android.view.WindowId;
 import android.view.WindowManager;
 import android.view.animation.Animation;
 import android.view.animation.AnimationUtils;
@@ -209,14 +214,18 @@ public class DimScreenService extends Service {
 //		});
 
 		mParams = new WindowManager.LayoutParams(
-			WindowManager.LayoutParams.MATCH_PARENT,
-			WindowManager.LayoutParams.MATCH_PARENT,
-			WindowManager.LayoutParams.TYPE_PHONE,
-			WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
-			PixelFormat.TRANSLUCENT);
+				WindowManager.LayoutParams.MATCH_PARENT,
+				WindowManager.LayoutParams.MATCH_PARENT,
+				WindowManager.LayoutParams.TYPE_PHONE,
+//				WindowManager.LayoutParams.TYPE_SYSTEM_OVERLAY,
+				WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+//				WindowManager.LayoutParams.FLAG_LAYOUT_ATTACHED_IN_DECOR,
+				PixelFormat.TRANSLUCENT);
+
 		mParams.gravity = Gravity.LEFT | Gravity.TOP;
 		mParams.alpha = savedAlphaValue;
 		mWindowManager.addView(mLayout, mParams);
+
 		setMaxPosition();
 	}
 
@@ -280,12 +289,33 @@ public class DimScreenService extends Service {
 		startForeground(1, notification);
 	}
 
+	private int removeWindowCheckCount = 0;
+	private boolean sendHandleMessage = false;
+	private Handler mHandler = new Handler() {
+		@Override
+		public void handleMessage(Message msg) {
+			super.handleMessage(msg);
+			removeWindowCheckCount = 0;
+			sendHandleMessage = false;
+		}
+	};
+
 	private View.OnTouchListener onLayoutTouchListener = new View.OnTouchListener() {
 		@Override
 		public boolean onTouch(View v, MotionEvent event) {
 			if (event.getAction() == MotionEvent.ACTION_DOWN) {
 				Log.i(TAG, "touch down action call");
 				touchDownCount++;
+				removeWindowCheckCount++;
+				if (sendHandleMessage == false) {
+					mHandler.sendEmptyMessageDelayed(0, 1000);
+					sendHandleMessage = true;
+				}
+			}
+
+			if (removeWindowCheckCount > 2) {
+				toggleWindowView();
+				return true;
 			}
 
 			if ((touchDownCount % 2) == 0) {

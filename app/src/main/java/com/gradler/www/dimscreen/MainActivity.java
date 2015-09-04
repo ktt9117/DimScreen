@@ -48,5 +48,6 @@ public class MainActivity extends Activity implements View.OnClickListener {
         } else {
             stopService(new Intent(this, DimScreenService.class));
         }
+        finish();
     }
 }
