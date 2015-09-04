@@ -20,7 +20,11 @@ import android.text.TextUtils;
 import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.Gravity;
+import android.view.MotionEvent;
+import android.view.View;
 import android.view.WindowManager;
+import android.view.animation.Animation;
+import android.view.animation.AnimationUtils;
 import android.widget.LinearLayout;
 import android.widget.SeekBar;
 import android.widget.SeekBar.OnSeekBarChangeListener;
@@ -42,11 +46,16 @@ public class DimScreenService extends Service {
 	private LinearLayout mLayout;
 	private TextClock mTextClock;
 	private TextView mBatteryLevel;
+	private SeekBar mAlphaSeekBar;
+
+	private Animation fadeInAnimation;
+	private Animation fadeOutAnimation;
 
 	private int mDeviceHeight;
 
 	//private boolean mMovable = false;
 	private BatteryStatusReceiver mReceiver;
+	private int touchDownCount;
 
 	@Override
 	public IBinder onBind(Intent arg0) { return null; }
@@ -62,6 +71,11 @@ public class DimScreenService extends Service {
 		IntentFilter filter = new IntentFilter();
 		filter.addAction(Intent.ACTION_BATTERY_CHANGED);
 		registerReceiver(mReceiver, filter);
+
+		fadeInAnimation = AnimationUtils.loadAnimation(this, R.anim.fade_in_ani);
+		fadeOutAnimation = AnimationUtils.loadAnimation(this, R.anim.fade_out_ani);
+		fadeInAnimation.setAnimationListener(mAnimationListener);
+		fadeOutAnimation.setAnimationListener(mAnimationListener);
 
 		startForegroundService();
 
@@ -124,12 +138,12 @@ public class DimScreenService extends Service {
 
 		LinearLayout.LayoutParams param = new LinearLayout.LayoutParams(
 				LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-		SeekBar alphaSeekBar = new SeekBar(this);
-		alphaSeekBar.setLayoutParams(param);
+		mAlphaSeekBar = new SeekBar(this);
+		mAlphaSeekBar.setLayoutParams(param);
 		//alphaSeekBar.setRotation(270);
-		alphaSeekBar.setMax(100);
-		alphaSeekBar.setProgress((int) (savedAlphaValue * 100));
-		alphaSeekBar.setOnSeekBarChangeListener(new OnSeekBarChangeListener() {
+		mAlphaSeekBar.setMax(100);
+		mAlphaSeekBar.setProgress((int) (savedAlphaValue * 100));
+		mAlphaSeekBar.setOnSeekBarChangeListener(new OnSeekBarChangeListener() {
 			@Override
 			public void onStopTrackingTouch(SeekBar seekBar) {
 			}
@@ -166,9 +180,10 @@ public class DimScreenService extends Service {
 		mBatteryLevel.setText("Unknown");
 		mBatteryLevel.setLayoutParams(textClockParam);
 
-		mLayout.addView(alphaSeekBar);
+		mLayout.addView(mAlphaSeekBar);
 		mLayout.addView(mTextClock);
 		mLayout.addView(mBatteryLevel);
+		mLayout.setOnTouchListener(onLayoutTouchListener);
 //		mLayout.addView(sizeSeekBar);
 
 //		mLayout.setOnTouchListener(new View.OnTouchListener() {
@@ -237,8 +252,11 @@ public class DimScreenService extends Service {
 		if (mWindowManager != null) {
 			if (mLayout != null) {
 				if (mBatteryLevel != null) mLayout.removeView(mBatteryLevel);
-				if (mBatteryLevel != null) mLayout.removeView(mTextClock);
+				if (mTextClock != null) mLayout.removeView(mTextClock);
+				if (mAlphaSeekBar != null) mLayout.removeView(mAlphaSeekBar);
+				mBatteryLevel = null;
 				mTextClock = null;
+				mAlphaSeekBar = null;
 				mWindowManager.removeView(mLayout);
 			}
 			mLayout = null;
@@ -261,6 +279,41 @@ public class DimScreenService extends Service {
 
 		startForeground(1, notification);
 	}
+
+	private View.OnTouchListener onLayoutTouchListener = new View.OnTouchListener() {
+		@Override
+		public boolean onTouch(View v, MotionEvent event) {
+			if (event.getAction() == MotionEvent.ACTION_DOWN) {
+				Log.i(TAG, "touch down action call");
+				touchDownCount++;
+			}
+
+			if ((touchDownCount % 2) == 0) {
+				toggleSeekBarShowStatus();
+				return true;
+			}
+
+			return false;
+		}
+	};
+
+	private void toggleSeekBarShowStatus() {
+		if (mAlphaSeekBar == null) {
+			return;
+		}
+		mAlphaSeekBar.startAnimation((mAlphaSeekBar.getVisibility()) == View.VISIBLE ? fadeOutAnimation : fadeInAnimation);
+	}
+
+	private Animation.AnimationListener mAnimationListener = new Animation.AnimationListener() {
+		@Override
+		public void onAnimationStart(Animation animation) {}
+		@Override
+		public void onAnimationRepeat(Animation animation) {}
+		@Override
+		public void onAnimationEnd(Animation animation) {
+			mAlphaSeekBar.setVisibility((mAlphaSeekBar.getVisibility()) == View.VISIBLE ? View.INVISIBLE : View.VISIBLE);
+		}
+	};
 
 	private class BatteryStatusReceiver extends BroadcastReceiver {
 		@Override
