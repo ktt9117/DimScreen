@@ -22,11 +22,8 @@ import android.text.TextUtils;
 import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.Gravity;
-import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.View;
-import android.view.ViewGroup;
-import android.view.WindowId;
 import android.view.WindowManager;
 import android.view.animation.Animation;
 import android.view.animation.AnimationUtils;
@@ -41,7 +38,6 @@ public class DimScreenService extends Service {
 
 	private static final String INTENT_ACTION_DIM_SCREEN = "DIM_SCREEN_ACTION";
 	private static final String PREF_DIM_SCREEN_ALPHA = "PREF_DIM_SCREEN_ALPHA";
-	//private static final int TOUCH_MOVE_SENSITIVITY_VALUE = 10;
 
 	private WindowManager.LayoutParams mParams;
 	private WindowManager mWindowManager;
@@ -55,12 +51,20 @@ public class DimScreenService extends Service {
 
 	private Animation fadeInAnimation;
 	private Animation fadeOutAnimation;
-
-	private int mDeviceHeight;
-
-	//private boolean mMovable = false;
 	private BatteryStatusReceiver mReceiver;
 	private int touchDownCount;
+
+	private static final int HANDLE_WHAT_COUNT_INIT = 100;
+	private int removeWindowCheckCount = 0;
+	private boolean sendHandleMessage = false;
+	private Handler mHandler = new Handler() {
+		@Override
+		public void handleMessage(Message msg) {
+			super.handleMessage(msg);
+			removeWindowCheckCount = 0;
+			sendHandleMessage = false;
+		}
+	};
 
 	@Override
 	public IBinder onBind(Intent arg0) { return null; }
@@ -71,7 +75,7 @@ public class DimScreenService extends Service {
 		mWindowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
 		mPref = PreferenceManager.getDefaultSharedPreferences(this);
 
-		/* register battry status receiver */
+		/* register battery status receiver */
 		mReceiver = new BatteryStatusReceiver();
 		IntentFilter filter = new IntentFilter();
 		filter.addAction(Intent.ACTION_BATTERY_CHANGED);
@@ -83,9 +87,6 @@ public class DimScreenService extends Service {
 		fadeOutAnimation.setAnimationListener(mAnimationListener);
 
 		startForegroundService();
-
-//		addOpacityController();
-//		isAttachedLayout = true;
 	}
 
 	@Override
@@ -98,13 +99,6 @@ public class DimScreenService extends Service {
 		return START_STICKY;
 	}
 
-	private void setMaxPosition() {
-		DisplayMetrics matrix = new DisplayMetrics();
-		mWindowManager.getDefaultDisplay().getMetrics(matrix);
-		mDeviceHeight = matrix.heightPixels;
-		Log.d(TAG, "mDeviceHeight : " + mDeviceHeight);
-	}
-
 	@TargetApi(Build.VERSION_CODES.JELLY_BEAN_MR1)
 	private void addOpacityController() {
 		removeWindowLayout();
@@ -113,31 +107,6 @@ public class DimScreenService extends Service {
 		mLayout.setPadding(60, 60, 60, 60);
 		mLayout.setBackgroundColor(Color.BLACK);
 		mLayout.setOrientation(LinearLayout.VERTICAL);
-//		SeekBar sizeSeekBar = new SeekBar(this);
-//		sizeSeekBar.setMax(100);
-//		sizeSeekBar.setProgress(100);
-//		sizeSeekBar.setOnSeekBarChangeListener(new OnSeekBarChangeListener() {
-//			@Override
-//			public void onStopTrackingTouch(SeekBar seekBar) {
-//			}
-//
-//			@Override
-//			public void onStartTrackingTouch(SeekBar seekBar) {
-//			}
-//
-//			@Override
-//			public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-//				if (progress > 80) {
-//					mMovable = false;
-//				} else {
-//					mMovable = true;
-//				}
-//				if (progress > 10) {
-//					mParams.height = mDeviceHeight * progress / 100;
-//				}
-//				mWindowManager.updateViewLayout(mLayout, mParams);
-//			}
-//		});
 
 		float savedAlphaValue = (mPref != null) ? mPref.getFloat(PREF_DIM_SCREEN_ALPHA, .5f) : .5f;
 
@@ -160,6 +129,9 @@ public class DimScreenService extends Service {
 			@Override
 			public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
 				if (mParams != null) {
+					if (progress < 40) {
+						progress = 40;
+					}
 					mParams.alpha = progress / 100.0f;
 					if (mWindowManager != null) {
 						mWindowManager.updateViewLayout(mLayout, mParams);
@@ -182,36 +154,12 @@ public class DimScreenService extends Service {
 		mBatteryLevel = new TextView(this);
 		mBatteryLevel.setTextColor(Color.WHITE);
 		mBatteryLevel.setTextSize(30);
-		mBatteryLevel.setText("Unknown");
 		mBatteryLevel.setLayoutParams(textClockParam);
 
 		mLayout.addView(mAlphaSeekBar);
 		mLayout.addView(mTextClock);
 		mLayout.addView(mBatteryLevel);
 		mLayout.setOnTouchListener(onLayoutTouchListener);
-//		mLayout.addView(sizeSeekBar);
-
-//		mLayout.setOnTouchListener(new View.OnTouchListener() {
-//			float y;
-//			@Override
-//			public boolean onTouch(View v, MotionEvent event) {
-//				if (mMovable) {
-//					if (event.getAction() == MotionEvent.ACTION_DOWN) {
-//						y = event.getY();
-//						Log.i(TAG, "onTouch() ACTION_DOWN : " + y);
-//					} else if (event.getAction() == MotionEvent.ACTION_MOVE) {
-//						float gap = event.getY() - y;
-//						float temp = (gap < 0) ? (gap * -1) : gap;
-//						if (temp > TOUCH_MOVE_SENSITIVITY_VALUE) {
-//							mParams.y = (int) (mParams.y + gap);
-//							mWindowManager.updateViewLayout(mLayout, mParams);
-//						}
-//					}
-//					return true;
-//				}
-//				return false;
-//			}
-//		});
 
 		mParams = new WindowManager.LayoutParams(
 				WindowManager.LayoutParams.MATCH_PARENT,
@@ -226,14 +174,8 @@ public class DimScreenService extends Service {
 		mParams.alpha = savedAlphaValue;
 		mWindowManager.addView(mLayout, mParams);
 
-		setMaxPosition();
 	}
 
-	@Override
-	public void onConfigurationChanged(Configuration newConfig) {
-		setMaxPosition();
-	}
-	
 	@Override
 	public void onDestroy() {
 		removeWindowLayout();
@@ -289,17 +231,6 @@ public class DimScreenService extends Service {
 		startForeground(1, notification);
 	}
 
-	private int removeWindowCheckCount = 0;
-	private boolean sendHandleMessage = false;
-	private Handler mHandler = new Handler() {
-		@Override
-		public void handleMessage(Message msg) {
-			super.handleMessage(msg);
-			removeWindowCheckCount = 0;
-			sendHandleMessage = false;
-		}
-	};
-
 	private View.OnTouchListener onLayoutTouchListener = new View.OnTouchListener() {
 		@Override
 		public boolean onTouch(View v, MotionEvent event) {
@@ -308,18 +239,21 @@ public class DimScreenService extends Service {
 				touchDownCount++;
 				removeWindowCheckCount++;
 				if (sendHandleMessage == false) {
-					mHandler.sendEmptyMessageDelayed(0, 1000);
+					if (mHandler != null) mHandler.sendEmptyMessageDelayed(HANDLE_WHAT_COUNT_INIT, 1000);
 					sendHandleMessage = true;
 				}
 			}
 
 			if (removeWindowCheckCount > 2) {
+				removeWindowCheckCount = 0;
+				if (mHandler != null) mHandler.removeMessages(HANDLE_WHAT_COUNT_INIT);
+				sendHandleMessage = false;
 				toggleWindowView();
 				return true;
 			}
 
 			if ((touchDownCount % 2) == 0) {
-				toggleSeekBarShowStatus();
+				toggleSeekBarVisibility();
 				return true;
 			}
 
@@ -327,7 +261,7 @@ public class DimScreenService extends Service {
 		}
 	};
 
-	private void toggleSeekBarShowStatus() {
+	private void toggleSeekBarVisibility() {
 		if (mAlphaSeekBar == null) {
 			return;
 		}
@@ -341,6 +275,9 @@ public class DimScreenService extends Service {
 		public void onAnimationRepeat(Animation animation) {}
 		@Override
 		public void onAnimationEnd(Animation animation) {
+			if (mAlphaSeekBar == null) {
+				return;
+			}
 			mAlphaSeekBar.setVisibility((mAlphaSeekBar.getVisibility()) == View.VISIBLE ? View.INVISIBLE : View.VISIBLE);
 		}
 	};
