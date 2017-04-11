@@ -7,12 +7,18 @@ import android.view.Gravity;
 import android.view.View;
 import android.widget.Button;
 import android.widget.LinearLayout;
+import com.crashlytics.android.Crashlytics;
+import com.crashlytics.android.answers.Answers;
+import com.crashlytics.android.answers.CustomEvent;
+
+import io.fabric.sdk.android.Fabric;
 
 public class MainActivity extends Activity implements View.OnClickListener {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        Fabric.with(this, new Crashlytics());
         //setContentView(R.layout.remote_view);
 
         LinearLayout layout = new LinearLayout(getBaseContext());
@@ -45,9 +51,12 @@ public class MainActivity extends Activity implements View.OnClickListener {
     public void onClick(View v) {
         if (v.getId() == 1) {
             startService(new Intent(this, DimScreenService.class));
+            Answers.getInstance().logCustom(new CustomEvent("StartScreenService"));
         } else {
             stopService(new Intent(this, DimScreenService.class));
+            Answers.getInstance().logCustom(new CustomEvent("StopScreenService"));
         }
+
         finish();
     }
 }
