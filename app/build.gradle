@@ -14,7 +14,6 @@ repositories {
     maven { url 'https://maven.fabric.io/public' }
 }
 
-
 android {
     compileSdkVersion 22
     buildToolsVersion '25.0.0'
@@ -23,8 +22,8 @@ android {
         applicationId "com.gradler.www.dimscreen"
         minSdkVersion 15
         targetSdkVersion 22
-        versionCode 2
-        versionName "1.1"
+        versionCode 3
+        versionName "1.2"
     }
     buildTypes {
         release {

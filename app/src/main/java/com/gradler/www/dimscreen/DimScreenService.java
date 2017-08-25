@@ -25,8 +25,11 @@ import android.widget.LinearLayout;
 import android.widget.SeekBar;
 import android.widget.SeekBar.OnSeekBarChangeListener;
 
+import com.crashlytics.android.Crashlytics;
 import com.crashlytics.android.answers.Answers;
 import com.crashlytics.android.answers.CustomEvent;
+
+import io.fabric.sdk.android.Fabric;
 
 public class DimScreenService extends Service {
 	private static final String TAG = DimScreenService.class.getSimpleName();
@@ -40,13 +43,10 @@ public class DimScreenService extends Service {
 
 	private boolean isAttachedLayout;
 	private LinearLayout mLayout;
-//	private TextClock mTextClock;
-//	private TextView mBatteryLevel;
 	private SeekBar mAlphaSeekBar;
 
 	private Animation fadeInAnimation;
 	private Animation fadeOutAnimation;
-//	private BatteryStatusReceiver mReceiver;
 	private int touchDownCount;
 
 	private static final int HANDLE_WHAT_COUNT_INIT = 100;
@@ -70,12 +70,6 @@ public class DimScreenService extends Service {
 		mWindowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
 		mPref = PreferenceManager.getDefaultSharedPreferences(this);
 
-		/* register battery status receiver */
-//		mReceiver = new BatteryStatusReceiver();
-//		IntentFilter filter = new IntentFilter();
-//		filter.addAction(Intent.ACTION_BATTERY_CHANGED);
-//		registerReceiver(mReceiver, filter);
-
 		fadeInAnimation = AnimationUtils.loadAnimation(this, R.anim.fade_in_ani);
 		fadeOutAnimation = AnimationUtils.loadAnimation(this, R.anim.fade_out_ani);
 		fadeInAnimation.setAnimationListener(mAnimationListener);
@@ -86,6 +80,10 @@ public class DimScreenService extends Service {
 
 	@Override
 	public int onStartCommand(Intent intent, int flags, int startId) {
+		if (!Fabric.isInitialized()) {
+			Fabric.with(getApplicationContext(), new Crashlytics());
+		}
+
 		String action = intent != null && intent.getAction() != null ? intent.getAction() : null;
 		Log.d(TAG, "intent action : " + action);
 		if (!TextUtils.isEmpty(action) && action.equals(INTENT_ACTION_DIM_SCREEN)) {
@@ -137,22 +135,7 @@ public class DimScreenService extends Service {
 			}
 		});
 
-//		mTextClock = new TextClock(this);
-//		mTextClock.setTextSize(40);
-//		mTextClock.setTextColor(Color.WHITE);
-//		LinearLayout.LayoutParams textClockParam = new LinearLayout.LayoutParams(
-//				LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-//		textClockParam.gravity = Gravity.CENTER_HORIZONTAL;
-//		mTextClock.setLayoutParams(textClockParam);
-//
-//		mBatteryLevel = new TextView(this);
-//		mBatteryLevel.setTextColor(Color.WHITE);
-//		mBatteryLevel.setTextSize(30);
-//		mBatteryLevel.setLayoutParams(textClockParam);
-
 		mLayout.addView(mAlphaSeekBar);
-//		mLayout.addView(mTextClock);
-//		mLayout.addView(mBatteryLevel);
 		mLayout.setOnTouchListener(onLayoutTouchListener);
 
 		mParams = new WindowManager.LayoutParams(
@@ -170,12 +153,6 @@ public class DimScreenService extends Service {
 	@Override
 	public void onDestroy() {
 		removeWindowLayout();
-
-//		if (mReceiver != null) {
-//			unregisterReceiver(mReceiver);
-//			mReceiver = null;
-//		}
-
 		stopForeground(true);
 		super.onDestroy();
 	}
@@ -195,18 +172,18 @@ public class DimScreenService extends Service {
 	}
 
 	private void removeWindowLayout() {
-		if (mWindowManager != null) {
-			if (mLayout != null) {
-//				if (mBatteryLevel != null) mLayout.removeView(mBatteryLevel);
-//				if (mTextClock != null) mLayout.removeView(mTextClock);
-				if (mAlphaSeekBar != null) mLayout.removeView(mAlphaSeekBar);
-//				mBatteryLevel = null;
-//				mTextClock = null;
-				mAlphaSeekBar = null;
-				mWindowManager.removeView(mLayout);
-			}
-			mLayout = null;
+		if (mWindowManager == null) {
+			return;
 		}
+
+		if (mLayout != null) {
+			if (mAlphaSeekBar != null) mLayout.removeView(mAlphaSeekBar);
+
+			mAlphaSeekBar = null;
+			mWindowManager.removeView(mLayout);
+		}
+
+		mLayout = null;
 	}
 
 	@TargetApi(Build.VERSION_CODES.JELLY_BEAN)
@@ -260,7 +237,9 @@ public class DimScreenService extends Service {
 		if (mAlphaSeekBar == null) {
 			return;
 		}
-		mAlphaSeekBar.startAnimation((mAlphaSeekBar.getVisibility()) == View.VISIBLE ? fadeOutAnimation : fadeInAnimation);
+
+		mAlphaSeekBar.startAnimation(
+				(mAlphaSeekBar.getVisibility()) == View.VISIBLE ? fadeOutAnimation : fadeInAnimation);
 	}
 
 	private Animation.AnimationListener mAnimationListener = new Animation.AnimationListener() {
@@ -273,25 +252,8 @@ public class DimScreenService extends Service {
 			if (mAlphaSeekBar == null) {
 				return;
 			}
-			mAlphaSeekBar.setVisibility((mAlphaSeekBar.getVisibility()) == View.VISIBLE ? View.INVISIBLE : View.VISIBLE);
+			mAlphaSeekBar.setVisibility(
+					(mAlphaSeekBar.getVisibility()) == View.VISIBLE ? View.INVISIBLE : View.VISIBLE);
 		}
 	};
-
-	/*
-	private class BatteryStatusReceiver extends BroadcastReceiver {
-		@Override
-		public void onReceive(Context context, Intent intent) {
-			if (mBatteryLevel != null) {
-				int level = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1);
-				if (level > 0) {
-					StringBuffer sb = new StringBuffer();
-					sb.append("(");
-					sb.append(Integer.toString(level));
-					sb.append("%)");
-					mBatteryLevel.setText(sb.toString());
-				}
-			}
-		}
-	}
-	*/
 }
