@@ -2,26 +2,20 @@ package com.gradler.www.dimscreen;
 
 import android.app.Activity;
 import android.content.Intent;
+import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
+import android.provider.Settings;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.Button;
 import android.widget.LinearLayout;
-
-import com.crashlytics.android.Crashlytics;
-import com.crashlytics.android.answers.Answers;
-import com.crashlytics.android.answers.CustomEvent;
-
-import io.fabric.sdk.android.Fabric;
 
 public class MainActivity extends Activity implements View.OnClickListener {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        if (!Fabric.isInitialized()) {
-            Fabric.with(getApplicationContext(), new Crashlytics());
-        }
 
         setContentView(R.layout.remote_view);
         LinearLayout layout = new LinearLayout(getBaseContext());
@@ -53,11 +47,19 @@ public class MainActivity extends Activity implements View.OnClickListener {
     @Override
     public void onClick(View v) {
         if (v.getId() == 1) {
-            startService(new Intent(this, DimScreenService.class));
-            Answers.getInstance().logCustom(new CustomEvent("StartScreenService"));
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                if (Settings.canDrawOverlays(getApplicationContext())) {
+                    startService(new Intent(this, DimScreenService.class));
+
+                } else {
+                    Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                            Uri.parse("package:" + getApplicationContext().getPackageName()));
+                    startActivity(intent);
+                }
+            }
+
         } else {
             stopService(new Intent(this, DimScreenService.class));
-            Answers.getInstance().logCustom(new CustomEvent("StopScreenService"));
         }
 
         finish();

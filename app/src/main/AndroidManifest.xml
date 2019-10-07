@@ -3,7 +3,9 @@
     package="com.gradler.www.dimscreen" >
 
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
-    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
 
     <application
         android:allowBackup="true"
@@ -36,5 +38,4 @@
             android:value="c09e6cc47c4917d460bb11070756cdee3c5866c2" />
     </application>
 
-    <uses-permission android:name="android.permission.INTERNET" />
 </manifest>

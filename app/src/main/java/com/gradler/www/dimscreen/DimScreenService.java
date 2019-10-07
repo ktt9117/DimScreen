@@ -2,8 +2,11 @@ package com.gradler.www.dimscreen;
 
 import android.annotation.TargetApi;
 import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
+import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Color;
@@ -25,17 +28,12 @@ import android.widget.LinearLayout;
 import android.widget.SeekBar;
 import android.widget.SeekBar.OnSeekBarChangeListener;
 
-import com.crashlytics.android.Crashlytics;
-import com.crashlytics.android.answers.Answers;
-import com.crashlytics.android.answers.CustomEvent;
-
-import io.fabric.sdk.android.Fabric;
-
 public class DimScreenService extends Service {
 	private static final String TAG = DimScreenService.class.getSimpleName();
 
 	private static final String INTENT_ACTION_DIM_SCREEN = "DIM_SCREEN_ACTION";
 	private static final String PREF_DIM_SCREEN_ALPHA = "PREF_DIM_SCREEN_ALPHA";
+	private static final String CHANNEL_ID = "dimscreen_service_channel";
 
 	private WindowManager.LayoutParams mParams;
 	private WindowManager mWindowManager;
@@ -80,10 +78,6 @@ public class DimScreenService extends Service {
 
 	@Override
 	public int onStartCommand(Intent intent, int flags, int startId) {
-		if (!Fabric.isInitialized()) {
-			Fabric.with(getApplicationContext(), new Crashlytics());
-		}
-
 		String action = intent != null && intent.getAction() != null ? intent.getAction() : null;
 		Log.d(TAG, "intent action : " + action);
 		if (!TextUtils.isEmpty(action) && action.equals(INTENT_ACTION_DIM_SCREEN)) {
@@ -138,10 +132,17 @@ public class DimScreenService extends Service {
 		mLayout.addView(mAlphaSeekBar);
 		mLayout.setOnTouchListener(onLayoutTouchListener);
 
+		int layoutFlag;
+		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+			layoutFlag = WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY;
+		} else {
+			layoutFlag = WindowManager.LayoutParams.TYPE_PHONE;
+		}
+
 		mParams = new WindowManager.LayoutParams(
 				WindowManager.LayoutParams.MATCH_PARENT,
 				WindowManager.LayoutParams.MATCH_PARENT,
-				WindowManager.LayoutParams.TYPE_PHONE,
+				layoutFlag,
 				WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
 				PixelFormat.TRANSLUCENT);
 
@@ -165,10 +166,6 @@ public class DimScreenService extends Service {
 			addOpacityController();
 			isAttachedLayout = true;
 		}
-
-		CustomEvent event = new CustomEvent("toggleWindowView");
-		event.putCustomAttribute("toggle", isAttachedLayout ? "on" : "off");
-		Answers.getInstance().logCustom(event);
 	}
 
 	private void removeWindowLayout() {
@@ -191,16 +188,29 @@ public class DimScreenService extends Service {
 		Intent btnIntent = new Intent(this, DimScreenService.class);
 		btnIntent.setAction(INTENT_ACTION_DIM_SCREEN);
 		PendingIntent contentPending = PendingIntent.getService(this, 0, btnIntent, PendingIntent.FLAG_UPDATE_CURRENT);
+        Notification.Builder notiBuilder = null;
 
-		Notification notification = new Notification.Builder(this)
-				.setSmallIcon(R.mipmap.ic_launcher)
-				.setContentTitle(getString(R.string.app_name))
-				.setContentIntent(contentPending)
-				.setOngoing(true)
-				.setWhen(System.currentTimeMillis())
-				.build();
+		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            NotificationChannel channel = new NotificationChannel(CHANNEL_ID, "DimScreen Service Channel", NotificationManager.IMPORTANCE_HIGH);
+            NotificationManager notiMgr = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+            notiMgr.createNotificationChannel(channel);
+            notiBuilder = new Notification.Builder(this, CHANNEL_ID);
+        } else {
+            notiBuilder = new Notification.Builder(this);
+        }
 
-		startForeground(1, notification);
+        Notification notification = notiBuilder.setSmallIcon(R.mipmap.ic_launcher)
+            .setContentTitle(getString(R.string.app_name))
+            .setContentIntent(contentPending)
+            .setOngoing(true)
+            .setWhen(System.currentTimeMillis())
+            .build();
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(btnIntent);
+        }
+
+        startForeground(1, notification);
 	}
 
 	private View.OnTouchListener onLayoutTouchListener = new View.OnTouchListener() {
